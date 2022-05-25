@@ -16,14 +16,10 @@ class DownloadImageView: UIImageView {
         }
         image = nil
         self.url = url
-        if let data = ImageDataManager.shared.getData(url: url) {
-            image = isInverted ? UIImage(data: data)?.inverseImage() : UIImage(data: data)
-        } else {
-            ImageDataManager.shared.downloadImage(url: url) { [weak self] data in
-                if let data = data, url == self?.url  {
-                    DispatchQueue.main.async {
-                        self?.image = isInverted ? UIImage(data: data)?.inverseImage() : UIImage(data: data)
-                    }
+        ImageDataManager.shared.getImage(url: url) { [weak self] data in
+            if let data = data, url == self?.url  {
+                DispatchQueue.main.async {
+                    self?.image = isInverted ? UIImage(data: data)?.inverseImage() : UIImage(data: data)
                 }
             }
         }

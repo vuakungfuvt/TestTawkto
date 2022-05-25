@@ -13,6 +13,7 @@ class UserViewModel: ViewModelType {
     let onUpdate = PassthroughSubject<UserModel, Never>()
     let onRequest = PassthroughSubject<Int, Never>()
     let onResponse = PassthroughSubject<([UserModel], Bool), Never>()
+    let onError = PassthroughSubject<APIError?, Never>()
     let onSearchText = CurrentValueSubject<String, Never>("")
     let display = PassthroughSubject<UserDisplayModel, Never>()
     let onNext = PassthroughSubject<UserModel, Never>()
@@ -61,6 +62,7 @@ class UserViewModel: ViewModelType {
                         self.userModels.append(contentsOf: processedData)
                         self.onResponse.send((self.userModels, true))
                     }
+                    self.onError.send(nil)
                 case .failure(let error):
                     if userId == 0 && error == .noInternet {
                         let savedUsers = UserManager.shared.getAllUser()
@@ -68,6 +70,7 @@ class UserViewModel: ViewModelType {
                         self.userModels = processedData
                         self.onResponse.send((self.userModels, false))
                     }
+                    self.onError.send(error)
                 }
             })
     }

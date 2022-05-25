@@ -37,12 +37,26 @@ class ImageDataManager {
         return (data?.first as? ImageData)?.data
     }
     
-    func downloadImage(url: String, completion: ((Data?) -> Void)? = nil) {
+    func getImage(url: String, completion: ((Data?) -> Void)? = nil) {
+        if let data = ImageDataManager.shared.getData(url: url) {
+            completion?(data)
+        } else if downloadUrl.contains(url) {
+            
+        } else {
+            downloadImage(url: url) { [weak self] data in
+                if let data = data {
+                    self?.coreDataService.save(entityName: "ImageData", dataDict: ["url": url, "data": data])
+                }
+                completion?(data)
+            }
+        }
+    }
+    
+    private func downloadImage(url: String, completion: ((Data?) -> Void)? = nil) {
         downloadUrl.insert(url)
-        apiService.downloadImage(url: url) { [weak self] result in
+        apiService.downloadImage(url: url) { result in
             switch result {
             case .success(let data):
-                self?.coreDataService.save(entityName: "ImageData", dataDict: ["url": url, "data": data])
                 completion?(data)
             case .failure(_):
                 completion?(nil)
@@ -50,12 +64,28 @@ class ImageDataManager {
         }
     }
     
-    func prefetchImage(urls: [String]) {
+    private func downloadMultiImage(urls: [String], completion: (([String: Data]) -> Void)? = nil) {
+        let dispatchGroup = DispatchGroup()
+        var dictData: [String: Data] = [:]
         for url in urls {
-            if downloadUrl.contains(url) {
-                continue
+            dispatchGroup.enter()
+            downloadImage(url: url) { data in
+                if let data = data {
+                    dictData[url] = data
+                }
+                dispatchGroup.leave()
             }
-            downloadImage(url: url, completion: nil)
+        }
+        dispatchGroup.notify(queue: .main) {
+            completion?(dictData)
+        }
+    }
+    
+    func prefetchImage(urls: [String]) {
+        downloadMultiImage(urls: urls) { [weak self] dictData in
+            for (url, data) in dictData {
+                self?.coreDataService.save(entityName: "ImageData", dataDict: ["url": url, "data": data])
+            }
         }
     }
 }

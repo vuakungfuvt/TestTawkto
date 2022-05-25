@@ -42,6 +42,8 @@ class UserViewController: UIViewController {
         return searchBar
     }()
     
+    private var indicator = UIActivityIndicatorView()
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupViews()
@@ -85,6 +87,9 @@ extension UserViewController: ControllerType {
             make.leading.trailing.bottom.equalToSuperview()
         }
         addLoadmore()
+        userTableView.es.addPullToRefresh { [weak self] in
+            self?.viewModel.onRequest.send(0)
+        }
     }
     
     func bindViewModel() {
@@ -106,6 +111,19 @@ extension UserViewController: ControllerType {
                     self.userTableView.reloadRows(at: [IndexPath(row: index, section: 0)], with: .none)
                 }
             }).store(in: &cancelBag)
+        viewModel
+            .onError
+            .receive(on: RunLoop.main)
+            .sink(receiveValue: { [weak self] error in
+                guard let self = self else {
+                    return
+                }
+                if let error = error, error == .noInternet {
+                    self.userTableView.es.startPullToRefresh()
+                } else {
+                    self.userTableView.es.stopPullToRefresh()
+                }
+            }).store(in: &cancelBag)
     }
     
     func setupDisplay(display: UserDisplayModel) {
@@ -118,16 +136,22 @@ extension UserViewController: ControllerType {
                     IndexPath(row: $0, section: 0)
                 }
                 self.display = display
-                self.userTableView.insertRows(at: indexPaths, with: .none)
-                let urls = indexPaths.map { display.userModels[$0.row].avatarUrl }
-                ImageDataManager.shared.prefetchImage(urls: urls)
+                self.userTableView.performBatchUpdates({ [weak self] in
+                    self?.userTableView.insertRows(at: indexPaths, with: .none)
+                }, completion: { _ in
+                    let urls = indexPaths.map { display.userModels[$0.row].avatarUrl }
+                    ImageDataManager.shared.prefetchImage(urls: urls)
+                })
             }, completion: { [weak self] _ in
                 self?.userTableView.es.stopLoadingMore()
             })
         } else {
             self.display = display
-            userTableView.reloadData()
-            ImageDataManager.shared.prefetchImage(urls: display.userModels.map { $0.avatarUrl })
+            UIView.animate(withDuration: .zero, animations: {
+                self.userTableView.reloadData()
+            }, completion: { _ in
+                ImageDataManager.shared.prefetchImage(urls: display.userModels.map { $0.avatarUrl })
+            })
         }
     }
     
